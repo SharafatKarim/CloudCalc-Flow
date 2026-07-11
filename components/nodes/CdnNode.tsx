@@ -6,6 +6,7 @@ import { useArchitectureStore } from "@/store/architectureStore";
 import type { CdnData } from "@/lib/types";
 import { CDN_BASE, CDN_PER_GB } from "@/lib/infrastructureData";
 import { usd } from "@/lib/ui";
+import SinkLoadBar from "./SinkLoadBar";
 
 export default function CdnNode({ id, data, selected }: NodeProps) {
   const d = data as CdnData;
@@ -28,6 +29,7 @@ export default function CdnNode({ id, data, selected }: NodeProps) {
         <div>{d.cachedGB} GB cached</div>
         <div className="text-slate-400">{usd(cost)}/mo</div>
       </div>
+      <SinkLoadBar id={id} />
     </div>
   );
 }

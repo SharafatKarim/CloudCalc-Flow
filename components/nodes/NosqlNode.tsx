@@ -6,6 +6,7 @@ import { useArchitectureStore } from "@/store/architectureStore";
 import type { NoSqlData } from "@/lib/types";
 import { NOSQL_BASE, NOSQL_PER_GB } from "@/lib/infrastructureData";
 import { usd } from "@/lib/ui";
+import SinkLoadBar from "./SinkLoadBar";
 
 export default function NosqlNode({ id, data, selected }: NodeProps) {
   const d = data as NoSqlData;
@@ -28,6 +29,7 @@ export default function NosqlNode({ id, data, selected }: NodeProps) {
         <div>{d.sizeGB} GB</div>
         <div className="text-slate-400">{usd(cost)}/mo</div>
       </div>
+      <SinkLoadBar id={id} />
     </div>
   );
 }

@@ -48,7 +48,7 @@ export default function ServerNode({ id, data, selected }: NodeProps) {
       <div className="px-3 pb-2">
         <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
           <div
-            className={`h-full ${utilBarColor(util)} transition-all`}
+            className={`h-full ${utilBarColor(util)} transition-all duration-700 ease-out`}
             style={{ width: `${Math.min(100, util)}%` }}
           />
         </div>
@@ -60,6 +60,7 @@ export default function ServerNode({ id, data, selected }: NodeProps) {
 
       {m && (
         <div className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 w-44 -translate-x-1/2 rounded-lg bg-slate-900 p-2 text-[10px] leading-relaxed text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+          <div>Users handled: ~{Math.round(m.usersHandled).toLocaleString()}</div>
           <div>
             RAM: {m.usedRAM.toFixed(0)} / {m.totalRAM} MB
           </div>

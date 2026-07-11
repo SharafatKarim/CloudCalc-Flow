@@ -12,15 +12,18 @@ import {
   Timer,
   Activity,
   Network,
+  Dices,
+  Play,
+  Pause,
 } from "lucide-react";
 import { useArchitectureStore } from "@/store/architectureStore";
 import { useToastStore } from "@/store/toastStore";
-import { useGlobalMetrics } from "@/hooks/useSimulation";
+import { useGlobalMetrics, useVarianceOpts } from "@/hooks/useSimulation";
 import {
   computeServerMetrics,
-  getTrafficServers,
-  type ServerMetrics,
+  computeTrafficShares,
 } from "@/lib/simulation";
+import { nodeSeed } from "@/lib/variance";
 import type { ServerData } from "@/lib/types";
 import { buildExport, downloadJSON, parseImport, toMarkdown } from "@/lib/export";
 import { usd, healthDot, healthLabel, healthTextColor } from "@/lib/ui";
@@ -58,24 +61,29 @@ export default function MetricsPanel() {
   const replaceArchitecture = useArchitectureStore((s) => s.replaceArchitecture);
   const canUndo = useArchitectureStore((s) => s.history.length > 0);
   const canRedo = useArchitectureStore((s) => s.redoStack.length > 0);
+  const varianceEnabled = useArchitectureStore((s) => s.varianceEnabled);
+  const toggleVariance = useArchitectureStore((s) => s.toggleVariance);
+  const rerollVariance = useArchitectureStore((s) => s.rerollVariance);
+  const varianceLive = useArchitectureStore((s) => s.varianceLive);
+  const toggleLive = useArchitectureStore((s) => s.toggleLive);
   const push = useToastStore((s) => s.push);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const opts = useVarianceOpts();
   const g = useGlobalMetrics();
 
   // Servers that are not healthy, with live metrics (for the suggestion cards).
   const critical = useMemo(() => {
-    const traffic = getTrafficServers(nodes, edges);
-    const count = Math.max(1, traffic.size);
+    const shares = computeTrafficShares(nodes, edges, users, opts);
     return nodes
       .filter((n) => n.type === "server")
       .map((n) => ({
         id: n.id,
         data: n.data as ServerData,
-        m: computeServerMetrics(n.data as ServerData, users, count, traffic.has(n.id)),
+        m: computeServerMetrics(n.data as ServerData, shares.get(n.id) ?? 0, opts, nodeSeed(n)),
       }))
       .filter((x) => x.m.status !== "healthy");
-  }, [nodes, edges, users]);
+  }, [nodes, edges, users, opts]);
 
   const overloaded = critical.filter((c) => c.m.status === "overloaded");
 
@@ -143,6 +151,44 @@ export default function MetricsPanel() {
             className="w-20 rounded-md border border-slate-200 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-800"
           />
         </div>
+
+        {/* Traffic variance controls */}
+        <div className="mt-2 flex items-center justify-between text-xs">
+          <label className="flex cursor-pointer items-center gap-1.5 text-slate-500">
+            <input
+              type="checkbox"
+              checked={varianceEnabled}
+              onChange={toggleVariance}
+              className="accent-sky-500"
+            />
+            Traffic variance
+          </label>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={toggleLive}
+              title={varianceLive ? "Pause live traffic" : "Animate live traffic"}
+              className={`flex items-center gap-1 rounded-md border px-2 py-1 font-medium transition ${
+                varianceLive
+                  ? "border-sky-500 bg-sky-500 text-white"
+                  : "border-slate-200 bg-white hover:border-sky-400 dark:border-slate-700 dark:bg-slate-800"
+              }`}
+            >
+              {varianceLive ? <Pause size={13} /> : <Play size={13} />} Live
+            </button>
+            <button
+              onClick={rerollVariance}
+              title="Re-roll the random distribution"
+              className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 font-medium transition hover:border-sky-400 disabled:opacity-40 dark:border-slate-700 dark:bg-slate-800"
+              disabled={!varianceEnabled}
+            >
+              <Dices size={13} /> Re-roll
+            </button>
+          </div>
+        </div>
+        <p className="mt-1 text-[10px] leading-snug text-slate-400">
+          Uneven load-balancer split and per-component usage jitter, like real traffic.
+          {varianceLive ? " Fluctuating live." : ""}
+        </p>
       </section>
 
       {/* Total cost */}

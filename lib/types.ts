@@ -27,6 +27,7 @@ export type Health = 'healthy' | 'warning' | 'overloaded';
 export type ServerData = {
   kind: 'server';
   name: string;
+  seed?: number;
   tier: Tier;
   os: OS;
   stack: Stack;
@@ -35,11 +36,13 @@ export type ServerData = {
 export type LoadBalancerData = {
   kind: 'loadBalancer';
   name: string;
+  seed?: number;
 };
 
 export type DatabaseData = {
   kind: 'database';
   name: string;
+  seed?: number;
   db: DbKind;
   sizeGB: number;
 };
@@ -47,33 +50,39 @@ export type DatabaseData = {
 export type StorageData = {
   kind: 'storage';
   name: string;
+  seed?: number;
   sizeGB: number;
 };
 
 export type CacheData = {
   kind: 'cache';
   name: string;
+  seed?: number;
 };
 
 export type CdnData = {
   kind: 'cdn';
   name: string;
+  seed?: number;
   cachedGB: number;
 };
 
 export type ApiGatewayData = {
   kind: 'apiGateway';
   name: string;
+  seed?: number;
 };
 
 export type QueueData = {
   kind: 'queue';
   name: string;
+  seed?: number;
 };
 
 export type NoSqlData = {
   kind: 'nosql';
   name: string;
+  seed?: number;
   db: NoSqlKind;
   sizeGB: number;
 };

@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useUiStore } from "@/store/uiStore";
+import { useArchitectureStore } from "@/store/architectureStore";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import Header from "./Header";
 import Palette from "./Palette";
@@ -17,11 +18,22 @@ export default function AppShell() {
   const setPaletteOpen = useUiStore((s) => s.setPaletteOpen);
   const setMetricsOpen = useUiStore((s) => s.setMetricsOpen);
 
+  const varianceLive = useArchitectureStore((s) => s.varianceLive);
+  const tickVariance = useArchitectureStore((s) => s.tickVariance);
+
   useKeyboardShortcuts();
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
   }, [theme]);
+
+  // Live traffic: advance the variance seed on a tick so metrics fluctuate
+  // over time (CSS width transitions smooth the motion into a "breathing" effect).
+  useEffect(() => {
+    if (!varianceLive) return;
+    const id = setInterval(tickVariance, 1500);
+    return () => clearInterval(id);
+  }, [varianceLive, tickVariance]);
 
   return (
     <div className="flex h-screen flex-col">

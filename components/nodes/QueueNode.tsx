@@ -5,8 +5,9 @@ import { Inbox } from "lucide-react";
 import type { QueueData } from "@/lib/types";
 import { QUEUE_COST } from "@/lib/infrastructureData";
 import { usd } from "@/lib/ui";
+import SinkLoadBar from "./SinkLoadBar";
 
-export default function QueueNode({ data, selected }: NodeProps) {
+export default function QueueNode({ id, data, selected }: NodeProps) {
   const d = data as QueueData;
 
   return (
@@ -24,6 +25,7 @@ export default function QueueNode({ data, selected }: NodeProps) {
         <div>Message queue</div>
         <div className="text-slate-400">{usd(QUEUE_COST)}/mo</div>
       </div>
+      <SinkLoadBar id={id} />
     </div>
   );
 }

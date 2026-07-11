@@ -28,6 +28,23 @@ import {
   NOSQL_BASE,
   NOSQL_PER_GB,
 } from './infrastructureData';
+import {
+  jitter,
+  nodeSeed,
+  SALT_WEIGHT,
+  SALT_USAGE,
+  SALT_RESP,
+  SALT_SINK,
+  type VarianceOpts,
+} from './variance';
+
+/** Variance disabled — exact, uniform behaviour (the original model). */
+export const NO_VARIANCE: VarianceOpts = { enabled: false, varianceSeed: 0 };
+
+/** Relative traffic weight of a server (1 when variance is off). */
+export function serverWeight(seed: number, opts: VarianceOpts): number {
+  return opts.enabled ? jitter(seed ^ opts.varianceSeed, SALT_WEIGHT, 0.6, 1.4) : 1;
+}
 
 /**
  * Simulation math for CloudCalc Flow (instructions.md §4).
@@ -67,6 +84,30 @@ export function getTrafficServers(nodes: AppNode[], edges: AppEdge[]): Set<strin
   return receiving;
 }
 
+/**
+ * Distribute the user load across the servers in the traffic path.
+ * With variance on, each server is weighted (0.6–1.4×) by its seed so the split
+ * is uneven like a real load balancer; with variance off it is exactly equal.
+ * Returns a map of serverId → assigned users (only traffic-path servers).
+ */
+export function computeTrafficShares(
+  nodes: AppNode[],
+  edges: AppEdge[],
+  concurrentUsers: number,
+  opts: VarianceOpts,
+): Map<string, number> {
+  const traffic = getTrafficServers(nodes, edges);
+  const shares = new Map<string, number>();
+  if (traffic.size === 0) return shares;
+
+  const weighted = nodes
+    .filter((n) => n.type === 'server' && traffic.has(n.id))
+    .map((n) => ({ id: n.id, w: serverWeight(nodeSeed(n), opts) }));
+  const sumW = weighted.reduce((a, s) => a + s.w, 0) || 1;
+  for (const s of weighted) shares.set(s.id, (concurrentUsers * s.w) / sumW);
+  return shares;
+}
+
 export type ServerMetrics = {
   totalRAM: number;
   baseRAM: number;
@@ -76,18 +117,19 @@ export type ServerMetrics = {
   responseTimeMs: number;
   throughput: number;
   status: Health;
+  usersHandled: number;
 };
 
 /**
- * Per-server metrics for a given user load.
- * @param connectedCount number of servers sharing the traffic (>=1)
- * @param receivesTraffic whether THIS server is in the traffic path
+ * Per-server metrics for an already-assigned user count.
+ * @param usersOnThisServer users routed to this server (from computeTrafficShares)
+ * @param seed the server's stable variance seed (from nodeSeed)
  */
 export function computeServerMetrics(
   data: ServerData,
-  concurrentUsers: number,
-  connectedCount: number,
-  receivesTraffic: boolean,
+  usersOnThisServer: number,
+  opts: VarianceOpts,
+  seed: number,
 ): ServerMetrics {
   const tier = SERVER_TIERS[data.tier];
   const stack = TECH_STACKS[data.stack];
@@ -95,17 +137,29 @@ export function computeServerMetrics(
   const totalRAM = tier.ramMB;
   const baseRAM = OS_OVERHEAD[data.os] + stack.idleMB;
 
-  const usersOnThisServer = receivesTraffic
-    ? concurrentUsers / Math.max(1, connectedCount)
-    : 0;
-  const trafficRAM = (usersOnThisServer / 100) * stack.perHundredMB;
+  // ±10% per-server usage jitter — real workloads aren't uniform per user.
+  const usageFactor = opts.enabled ? jitter(seed ^ opts.varianceSeed, SALT_USAGE, 0.9, 1.1) : 1;
+  const trafficRAM = (usersOnThisServer / 100) * stack.perHundredMB * usageFactor;
 
   const usedRAM = baseRAM + trafficRAM;
   const utilPct = (usedRAM / totalRAM) * 100;
-  const responseTimeMs = tier.respBaselineMs + (utilPct / 100) * 50;
+
+  // Latency noise, clamped so it never drops below the tier baseline.
+  const respJitter = opts.enabled ? jitter(seed ^ opts.varianceSeed, SALT_RESP, -8, 8) : 0;
+  const responseTimeMs = Math.max(tier.respBaselineMs, tier.respBaselineMs + (utilPct / 100) * 50 + respJitter);
   const throughput = Math.max(0, tier.maxThroughput * (1 - utilPct / 150));
 
-  return { totalRAM, baseRAM, trafficRAM, usedRAM, utilPct, responseTimeMs, throughput, status: statusOf(utilPct) };
+  return {
+    totalRAM,
+    baseRAM,
+    trafficRAM,
+    usedRAM,
+    utilPct,
+    responseTimeMs,
+    throughput,
+    status: statusOf(utilPct),
+    usersHandled: usersOnThisServer,
+  };
 }
 
 /** Monthly cost (USD) of a single node. */
@@ -158,9 +212,9 @@ export function computeGlobals(
   nodes: AppNode[],
   edges: AppEdge[],
   concurrentUsers: number,
+  opts: VarianceOpts = NO_VARIANCE,
 ): GlobalMetrics {
-  const traffic = getTrafficServers(nodes, edges);
-  const connectedCount = Math.max(1, traffic.size);
+  const shares = computeTrafficShares(nodes, edges, concurrentUsers, opts);
   const servers = nodes.filter((n) => n.type === 'server');
 
   let totalRAM = 0;
@@ -170,11 +224,11 @@ export function computeGlobals(
   let worst: Health = 'healthy';
 
   for (const s of servers) {
-    const receives = traffic.has(s.id);
-    const m = computeServerMetrics(s.data as ServerData, concurrentUsers, connectedCount, receives);
+    const assigned = shares.get(s.id) ?? 0;
+    const m = computeServerMetrics(s.data as ServerData, assigned, opts, nodeSeed(s));
     totalRAM += m.totalRAM;
     sumThroughput += m.throughput;
-    if (receives) {
+    if (shares.has(s.id)) {
       respSum += m.responseTimeMs;
       respWeight += 1;
     }
@@ -197,6 +251,36 @@ export function computeGlobals(
   };
 }
 
+export type SinkLoad = { loadPct: number; incomingUsers: number; status: Health };
+
+/** Nominal user throughput a single data/cache/edge sink is "busy" at (display scale). */
+const SINK_REF_USERS = 3000;
+
+/**
+ * Busy-ness of a data / cache / storage / edge / queue node — driven by the
+ * assigned traffic of the servers wired into it, plus a per-node jitter. This
+ * is a display-only indicator; it does not change any cost.
+ */
+export function computeSinkLoad(
+  node: AppNode,
+  nodes: AppNode[],
+  edges: AppEdge[],
+  concurrentUsers: number,
+  opts: VarianceOpts = NO_VARIANCE,
+): SinkLoad {
+  const shares = computeTrafficShares(nodes, edges, concurrentUsers, opts);
+  const serverIds = new Set(nodes.filter((n) => n.type === 'server').map((n) => n.id));
+
+  let incoming = 0;
+  for (const e of edges) {
+    if (e.target === node.id && serverIds.has(e.source)) incoming += shares.get(e.source) ?? 0;
+  }
+
+  const j = opts.enabled ? jitter(nodeSeed(node) ^ opts.varianceSeed, SALT_SINK, 0.85, 1.15) : 1;
+  const loadPct = Math.max(0, Math.min(100, (incoming / SINK_REF_USERS) * 100 * j));
+  return { loadPct, incomingUsers: incoming, status: statusOf(loadPct) };
+}
+
 export type Suggestion = {
   kind: 'upgrade' | 'add' | 'reduce';
   title: string;
@@ -214,8 +298,11 @@ export type Suggestion = {
  */
 export function suggestFixes(
   data: ServerData,
-  concurrentUsers: number,
+  seed: number,
+  usersOnThisServer: number,
+  totalUsers: number,
   connectedCount: number,
+  opts: VarianceOpts = NO_VARIANCE,
 ): Suggestion[] {
   const out: Suggestion[] = [];
   const tier = SERVER_TIERS[data.tier];
@@ -223,7 +310,7 @@ export function suggestFixes(
 
   if (idx < TIER_ORDER.length - 1) {
     const next = TIER_ORDER[idx + 1];
-    const m = computeServerMetrics({ ...data, tier: next }, concurrentUsers, connectedCount, true);
+    const m = computeServerMetrics({ ...data, tier: next }, usersOnThisServer, opts, seed);
     out.push({
       kind: 'upgrade',
       title: `Upgrade to ${next}`,
@@ -233,21 +320,24 @@ export function suggestFixes(
     });
   }
 
-  const mAdd = computeServerMetrics(data, concurrentUsers, connectedCount + 1, true);
+  // One more server widens the split; this server's share shrinks proportionally.
+  const scaled = (usersOnThisServer * connectedCount) / (connectedCount + 1);
+  const mAdd = computeServerMetrics(data, scaled, opts, seed);
   out.push({
     kind: 'add',
     title: 'Add another server',
-    detail: `Split load across ${connectedCount + 1} servers → ~${mAdd.utilPct.toFixed(0)}% each`,
+    detail: `Widen the split → ~${mAdd.utilPct.toFixed(0)}% on this server`,
     deltaCost: tier.cost,
   });
 
   const stack = TECH_STACKS[data.stack];
   const baseRAM = OS_OVERHEAD[data.os] + stack.idleMB;
   const budgetRAM = 0.8 * tier.ramMB - baseRAM; // RAM available for traffic at the 80% line
-  const safeUsers = Math.max(
-    0,
-    Math.floor((budgetRAM * 100 * connectedCount) / stack.perHundredMB),
-  );
+  const usageFactor = opts.enabled ? jitter(seed ^ opts.varianceSeed, SALT_USAGE, 0.9, 1.1) : 1;
+  const safeOnServer = Math.max(0, (budgetRAM * 100) / (stack.perHundredMB * usageFactor));
+  // Scale this server's safe count back up to a total, honouring its traffic share.
+  const frac = usersOnThisServer > 0 ? usersOnThisServer / Math.max(1, totalUsers) : 1 / Math.max(1, connectedCount);
+  const safeUsers = Math.max(0, Math.floor(safeOnServer / Math.max(frac, 1e-6)));
   out.push({
     kind: 'reduce',
     title: `Reduce to ${safeUsers.toLocaleString()} users`,

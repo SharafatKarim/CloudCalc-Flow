@@ -2,7 +2,8 @@
 
 import { X, Trash2 } from "lucide-react";
 import { useArchitectureStore } from "@/store/architectureStore";
-import { useConnectedServerCount } from "@/hooks/useSimulation";
+import { useServerMetrics, useVarianceOpts } from "@/hooks/useSimulation";
+import { nodeSeed } from "@/lib/variance";
 import {
   SERVER_TIERS,
   OS_LIST,
@@ -51,7 +52,8 @@ export default function ConfigModal() {
   const selectedId = useArchitectureStore((s) => s.selectedNodeId);
   const nodes = useArchitectureStore((s) => s.nodes);
   const users = useArchitectureStore((s) => s.concurrentUsers);
-  const connected = useConnectedServerCount();
+  const opts = useVarianceOpts();
+  const serverMetrics = useServerMetrics(selectedId ?? "");
   const update = useArchitectureStore((s) => s.updateNodeConfig);
   const deleteNode = useArchitectureStore((s) => s.deleteNode);
   const close = useArchitectureStore((s) => s.closeConfig);
@@ -77,7 +79,7 @@ export default function ConfigModal() {
 
         {node.type === "server" && (() => {
           const d = node.data as ServerData;
-          const preview = computeServerMetrics(d, users, connected, true);
+          const preview = computeServerMetrics(d, serverMetrics?.usersHandled ?? 0, opts, nodeSeed(node));
           return (
             <>
               <Field label="Server Name">

@@ -25,6 +25,9 @@ type State = {
   showConfigModal: boolean;
   history: SimSnapshot[];
   redoStack: SimSnapshot[];
+  varianceEnabled: boolean;
+  varianceSeed: number;
+  varianceLive: boolean;
 };
 
 type Actions = {
@@ -43,6 +46,10 @@ type Actions = {
   openConfig: (id: string) => void;
   closeConfig: () => void;
   replaceArchitecture: (data: { nodes: AppNode[]; edges: AppEdge[]; concurrentUsers: number }) => void;
+  toggleVariance: () => void;
+  rerollVariance: () => void;
+  toggleLive: () => void;
+  tickVariance: () => void;
 };
 
 export type ArchitectureStore = State & Actions;
@@ -103,6 +110,9 @@ export const useArchitectureStore = create<ArchitectureStore>()(
       showConfigModal: false,
       history: [],
       redoStack: [],
+      varianceEnabled: true,
+      varianceSeed: 1,
+      varianceLive: false,
 
       onNodesChange: (changes) => {
         const historyWorthy = changes.some(
@@ -152,7 +162,8 @@ export const useArchitectureStore = create<ArchitectureStore>()(
             id: `${type}-${seq}`,
             type,
             position,
-            data: defaultData(type, seq),
+            // Stable per-node seed for deterministic traffic/usage variance.
+            data: { ...defaultData(type, seq), seed: Math.floor(Math.random() * 1e9) },
           };
           state.nodes.push(node);
           state.nodeSeq += 1;
@@ -261,6 +272,29 @@ export const useArchitectureStore = create<ArchitectureStore>()(
           state.showConfigModal = false;
         });
       },
+
+      toggleVariance: () =>
+        set((state) => {
+          state.varianceEnabled = !state.varianceEnabled;
+        }),
+
+      rerollVariance: () =>
+        set((state) => {
+          state.varianceSeed = Math.floor(Math.random() * 1e9);
+          state.varianceEnabled = true;
+        }),
+
+      toggleLive: () =>
+        set((state) => {
+          state.varianceLive = !state.varianceLive;
+          if (state.varianceLive) state.varianceEnabled = true;
+        }),
+
+      // Advance the seed one step (driven by an interval when live). No history.
+      tickVariance: () =>
+        set((state) => {
+          state.varianceSeed = (state.varianceSeed + 1) % 1_000_000;
+        }),
     })),
     {
       name: 'cloudcalc-flow',
@@ -270,6 +304,9 @@ export const useArchitectureStore = create<ArchitectureStore>()(
         edges: s.edges,
         concurrentUsers: s.concurrentUsers,
         nodeSeq: s.nodeSeq,
+        varianceEnabled: s.varianceEnabled,
+        varianceSeed: s.varianceSeed,
+        varianceLive: s.varianceLive,
       }),
     },
   ),

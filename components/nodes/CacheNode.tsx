@@ -5,8 +5,9 @@ import { Zap } from "lucide-react";
 import type { CacheData } from "@/lib/types";
 import { CACHE_COST } from "@/lib/infrastructureData";
 import { usd } from "@/lib/ui";
+import SinkLoadBar from "./SinkLoadBar";
 
-export default function CacheNode({ data, selected }: NodeProps) {
+export default function CacheNode({ id, data, selected }: NodeProps) {
   const d = data as CacheData;
 
   return (
@@ -24,6 +25,7 @@ export default function CacheNode({ data, selected }: NodeProps) {
         <div>In-memory cache</div>
         <div className="text-slate-400">{usd(CACHE_COST)}/mo</div>
       </div>
+      <SinkLoadBar id={id} />
     </div>
   );
 }

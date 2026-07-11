@@ -4,7 +4,8 @@ import { AlertTriangle, ArrowUpCircle, PlusCircle, Users } from "lucide-react";
 import type { ServerData } from "@/lib/types";
 import { suggestFixes, type Suggestion } from "@/lib/simulation";
 import { useArchitectureStore } from "@/store/architectureStore";
-import { useConnectedServerCount } from "@/hooks/useSimulation";
+import { useConnectedServerCount, useServerMetrics, useVarianceOpts } from "@/hooks/useSimulation";
+import { nodeSeed } from "@/lib/variance";
 import { usd } from "@/lib/ui";
 
 function icon(kind: Suggestion["kind"]) {
@@ -16,12 +17,17 @@ function icon(kind: Suggestion["kind"]) {
 export default function SuggestionCard({ id, data }: { id: string; data: ServerData }) {
   const users = useArchitectureStore((s) => s.concurrentUsers);
   const connected = useConnectedServerCount();
+  const opts = useVarianceOpts();
+  const metrics = useServerMetrics(id);
+  const node = useArchitectureStore((s) => s.nodes.find((n) => n.id === id));
   const updateNodeConfig = useArchitectureStore((s) => s.updateNodeConfig);
   const addNode = useArchitectureStore((s) => s.addNode);
   const setUsers = useArchitectureStore((s) => s.setConcurrentUsers);
   const snapshot = useArchitectureStore((s) => s.snapshot);
 
-  const fixes = suggestFixes(data, users, connected);
+  const share = metrics?.usersHandled ?? users / connected;
+  const seed = node ? nodeSeed(node) : 0;
+  const fixes = suggestFixes(data, seed, share, users, connected, opts);
 
   const apply = (f: Suggestion) => {
     if (f.kind === "upgrade" && f.tier) {
