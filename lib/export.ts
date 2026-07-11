@@ -1,4 +1,4 @@
-import type { AppNode, AppEdge, ServerData, DatabaseData, StorageData } from './types';
+import type { AppNode, AppEdge, ServerData, DatabaseData, StorageData, CdnData, NoSqlData } from './types';
 import { nodeCost } from './simulation';
 
 export type ExportPayload = {
@@ -72,6 +72,16 @@ export function toMarkdown(nodes: AppNode[], edges: AppEdge[], concurrentUsers: 
     lines.push('');
   }
 
+  const nosql = nodes.filter((n) => n.type === 'nosql');
+  if (nosql.length) {
+    lines.push('## NoSQL Databases');
+    for (const n of nosql) {
+      const d = n.data as NoSqlData;
+      lines.push(`- ${d.db} (${d.sizeGB}GB) @ $${nodeCost(n).toFixed(2)}/mo`);
+    }
+    lines.push('');
+  }
+
   const storage = nodes.filter((n) => n.type === 'storage');
   if (storage.length) {
     lines.push('## Storage');
@@ -86,6 +96,30 @@ export function toMarkdown(nodes: AppNode[], edges: AppEdge[], concurrentUsers: 
   if (cache.length) {
     lines.push('## Cache');
     for (const n of cache) lines.push(`- Redis Cache @ $${nodeCost(n)}/mo`);
+    lines.push('');
+  }
+
+  const cdns = nodes.filter((n) => n.type === 'cdn');
+  if (cdns.length) {
+    lines.push('## CDN');
+    for (const n of cdns) {
+      const d = n.data as CdnData;
+      lines.push(`- CDN (${d.cachedGB}GB) @ $${nodeCost(n).toFixed(2)}/mo`);
+    }
+    lines.push('');
+  }
+
+  const queues = nodes.filter((n) => n.type === 'queue');
+  if (queues.length) {
+    lines.push('## Message Queues');
+    for (const n of queues) lines.push(`- Message Queue @ $${nodeCost(n)}/mo`);
+    lines.push('');
+  }
+
+  const gateways = nodes.filter((n) => n.type === 'apiGateway');
+  if (gateways.length) {
+    lines.push('## API Gateways');
+    for (const n of gateways) lines.push(`- API Gateway @ $${nodeCost(n)}/mo`);
     lines.push('');
   }
 

@@ -1,9 +1,30 @@
 "use client";
 
-import { Server, Scale, Database, HardDrive, Zap, type LucideIcon } from "lucide-react";
+import {
+  Server,
+  Scale,
+  Database,
+  HardDrive,
+  Zap,
+  Waypoints,
+  Boxes,
+  Globe,
+  Inbox,
+  type LucideIcon,
+} from "lucide-react";
 import { PALETTE } from "@/lib/infrastructureData";
 
-const ICONS: Record<string, LucideIcon> = { Server, Scale, Database, HardDrive, Zap };
+const ICONS: Record<string, LucideIcon> = {
+  Server,
+  Scale,
+  Database,
+  HardDrive,
+  Zap,
+  Waypoints,
+  Boxes,
+  Globe,
+  Inbox,
+};
 
 export default function Palette() {
   const onDragStart = (e: React.DragEvent, type: string) => {

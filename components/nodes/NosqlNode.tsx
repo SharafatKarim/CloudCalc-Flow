@@ -1,0 +1,33 @@
+"use client";
+
+import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { Boxes } from "lucide-react";
+import { useArchitectureStore } from "@/store/architectureStore";
+import type { NoSqlData } from "@/lib/types";
+import { NOSQL_BASE, NOSQL_PER_GB } from "@/lib/infrastructureData";
+import { usd } from "@/lib/ui";
+
+export default function NosqlNode({ id, data, selected }: NodeProps) {
+  const d = data as NoSqlData;
+  const openConfig = useArchitectureStore((s) => s.openConfig);
+  const cost = NOSQL_BASE[d.db] + Math.max(0, d.sizeGB - 1) * NOSQL_PER_GB;
+
+  return (
+    <div
+      onClick={() => openConfig(id)}
+      className={`relative w-44 cursor-pointer rounded-xl border-2 bg-white shadow-md transition dark:bg-slate-800 ${
+        selected ? "border-teal-500" : "border-slate-200 dark:border-slate-600"
+      }`}
+    >
+      <Handle type="target" position={Position.Left} className="!h-3 !w-3 !bg-teal-500" />
+      <div className="flex items-center gap-2 px-3 pt-2">
+        <Boxes size={16} className="shrink-0 text-teal-500" />
+        <span className="flex-1 truncate text-sm font-semibold">{d.db}</span>
+      </div>
+      <div className="px-3 pb-2 pt-1 text-[11px] text-slate-500">
+        <div>{d.sizeGB} GB</div>
+        <div className="text-slate-400">{usd(cost)}/mo</div>
+      </div>
+    </div>
+  );
+}

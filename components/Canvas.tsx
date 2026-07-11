@@ -19,6 +19,10 @@ import LoadBalancerNode from "./nodes/LoadBalancerNode";
 import DatabaseNode from "./nodes/DatabaseNode";
 import StorageNode from "./nodes/StorageNode";
 import CacheNode from "./nodes/CacheNode";
+import CdnNode from "./nodes/CdnNode";
+import ApiGatewayNode from "./nodes/ApiGatewayNode";
+import QueueNode from "./nodes/QueueNode";
+import NosqlNode from "./nodes/NosqlNode";
 import TrafficEdge from "./edges/TrafficEdge";
 
 const nodeTypes: NodeTypes = {
@@ -27,6 +31,10 @@ const nodeTypes: NodeTypes = {
   database: DatabaseNode,
   storage: StorageNode,
   cache: CacheNode,
+  cdn: CdnNode,
+  apiGateway: ApiGatewayNode,
+  queue: QueueNode,
+  nosql: NosqlNode,
 };
 
 const edgeTypes: EdgeTypes = {

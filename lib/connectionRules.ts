@@ -9,20 +9,34 @@ import type { NodeType } from './types';
 export function canConnect(source: NodeType, target: NodeType): boolean {
   switch (source) {
     case 'loadBalancer':
+    case 'apiGateway':
+      // Traffic entry points route only to Compute Servers.
       return target === 'server';
     case 'server':
-      return target === 'database' || target === 'storage' || target === 'cache';
+      // Servers write to data / cache / edge / queue sinks.
+      return (
+        target === 'database' ||
+        target === 'nosql' ||
+        target === 'storage' ||
+        target === 'cache' ||
+        target === 'cdn' ||
+        target === 'queue'
+      );
     default:
-      return false; // database / storage / cache cannot originate connections
+      return false; // sinks cannot originate connections
   }
 }
 
 const LABELS: Record<NodeType, string> = {
   server: 'Compute Server',
   loadBalancer: 'Load Balancer',
-  database: 'Database',
+  apiGateway: 'API Gateway',
+  database: 'SQL Database',
+  nosql: 'NoSQL Database',
   storage: 'S3 Storage',
   cache: 'Redis Cache',
+  cdn: 'CDN',
+  queue: 'Message Queue',
 };
 
 export function connectionError(source: NodeType, target: NodeType): string {

@@ -13,9 +13,25 @@ import {
   DB_PER_GB,
   STORAGE_BASE_COST,
   STORAGE_PER_GB,
+  CDN_BASE,
+  CDN_PER_GB,
+  NOSQL_LIST,
+  NOSQL_BASE,
+  NOSQL_PER_GB,
 } from "@/lib/infrastructureData";
 import { computeServerMetrics } from "@/lib/simulation";
-import type { ServerData, DatabaseData, StorageData, Tier, OS, Stack, DbKind } from "@/lib/types";
+import type {
+  ServerData,
+  DatabaseData,
+  StorageData,
+  CdnData,
+  NoSqlData,
+  Tier,
+  OS,
+  Stack,
+  DbKind,
+  NoSqlKind,
+} from "@/lib/types";
 import { usd, utilBarColor, healthLabel, healthTextColor } from "@/lib/ui";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -182,7 +198,67 @@ export default function ConfigModal() {
           );
         })()}
 
-        {(node.type === "cache" || node.type === "loadBalancer") && (
+        {node.type === "nosql" && (() => {
+          const d = node.data as NoSqlData;
+          const cost = NOSQL_BASE[d.db] + Math.max(0, d.sizeGB - 1) * NOSQL_PER_GB;
+          return (
+            <>
+              <Field label="Engine">
+                <select
+                  className={selectCls}
+                  value={d.db}
+                  onChange={(e) => update(node.id, { db: e.target.value as NoSqlKind, name: e.target.value })}
+                >
+                  {NOSQL_LIST.map((k) => (
+                    <option key={k} value={k}>{k}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label={`Storage Size: ${d.sizeGB} GB`}>
+                <input
+                  type="range"
+                  min={1}
+                  max={100}
+                  value={d.sizeGB}
+                  onChange={(e) => update(node.id, { sizeGB: Number(e.target.value) })}
+                  className="w-full accent-teal-500"
+                />
+              </Field>
+              <div className="rounded-lg bg-slate-50 p-3 text-sm dark:bg-slate-800">
+                Cost: <span className="font-semibold">{usd(cost)}/mo</span>
+              </div>
+            </>
+          );
+        })()}
+
+        {node.type === "cdn" && (() => {
+          const d = node.data as CdnData;
+          const cost = CDN_BASE + d.cachedGB * CDN_PER_GB;
+          return (
+            <>
+              <Field label={`Cached / Transferred: ${d.cachedGB} GB`}>
+                <input
+                  type="range"
+                  min={0}
+                  max={1000}
+                  step={10}
+                  value={d.cachedGB}
+                  onChange={(e) => update(node.id, { cachedGB: Number(e.target.value) })}
+                  className="w-full accent-cyan-500"
+                />
+              </Field>
+              <div className="rounded-lg bg-slate-50 p-3 text-sm dark:bg-slate-800">
+                Cost: <span className="font-semibold">{usd(cost)}/mo</span>{" "}
+                <span className="text-xs text-slate-400">(${CDN_BASE} base + $0.08/GB)</span>
+              </div>
+            </>
+          );
+        })()}
+
+        {(node.type === "cache" ||
+          node.type === "loadBalancer" ||
+          node.type === "apiGateway" ||
+          node.type === "queue") && (
           <p className="text-sm text-slate-500">
             This component has a fixed configuration and cost. No settings to adjust.
           </p>

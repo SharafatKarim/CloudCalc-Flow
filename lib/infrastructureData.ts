@@ -1,4 +1,4 @@
-import type { Tier, OS, Stack, DbKind } from './types';
+import type { Tier, OS, Stack, DbKind, NoSqlKind } from './types';
 
 /** Hardcoded infrastructure catalogue (instructions.md §1). All memory in MB, cost in USD/mo. */
 
@@ -58,6 +58,21 @@ export const CACHE_COST = 15; // Redis fixed
 export const LB_COST = 20;
 export const LB_CAPACITY = 1000; // concurrent connections per instance
 
+// --- Extended components (cost + connections only) ---
+export const CDN_BASE = 20; // CDN base $/mo
+export const CDN_PER_GB = 0.08; // + per GB cached/transferred
+export const API_GATEWAY_COST = 15; // fixed $/mo
+export const QUEUE_COST = 25; // message queue fixed $/mo
+
+/** NoSQL base cost per engine (first GB). */
+export const NOSQL_BASE: Record<NoSqlKind, number> = {
+  MongoDB: 12,
+  DynamoDB: 15,
+  Cassandra: 14,
+};
+export const NOSQL_PER_GB = 1.5; // $/GB beyond the first GB
+export const NOSQL_LIST: NoSqlKind[] = ['MongoDB', 'DynamoDB', 'Cassandra'];
+
 /** Avg data transferred per user per month (GB). Spec leaves this open — documented default. */
 export const BANDWIDTH_PER_USER_GB_MO = 2;
 
@@ -67,7 +82,16 @@ export const DB_LIST: DbKind[] = ['PostgreSQL', 'MySQL'];
 
 /** Palette metadata for the left sidebar. */
 export type PaletteItem = {
-  type: 'server' | 'loadBalancer' | 'database' | 'storage' | 'cache';
+  type:
+    | 'server'
+    | 'loadBalancer'
+    | 'apiGateway'
+    | 'database'
+    | 'nosql'
+    | 'storage'
+    | 'cache'
+    | 'cdn'
+    | 'queue';
   label: string;
   icon: string; // lucide icon name
   hint: string;
@@ -76,7 +100,11 @@ export type PaletteItem = {
 export const PALETTE: PaletteItem[] = [
   { type: 'server', label: 'Compute Server', icon: 'Server', hint: 'Micro/Ubuntu/Next.js · from $8/mo' },
   { type: 'loadBalancer', label: 'Load Balancer', icon: 'Scale', hint: 'Distributes traffic · $20/mo, 1k conns' },
-  { type: 'database', label: 'Database', icon: 'Database', hint: 'PostgreSQL/MySQL · from $8/mo' },
+  { type: 'apiGateway', label: 'API Gateway', icon: 'Waypoints', hint: 'Entry point → servers · $15/mo' },
+  { type: 'database', label: 'SQL Database', icon: 'Database', hint: 'PostgreSQL/MySQL · from $8/mo' },
+  { type: 'nosql', label: 'NoSQL Database', icon: 'Boxes', hint: 'MongoDB/DynamoDB · from $12/mo' },
   { type: 'storage', label: 'S3 Storage', icon: 'HardDrive', hint: 'Object store · $5/mo + $0.10/GB' },
   { type: 'cache', label: 'Redis Cache', icon: 'Zap', hint: 'In-memory cache · $15/mo' },
+  { type: 'cdn', label: 'CDN', icon: 'Globe', hint: 'Edge cache · $20/mo + $0.08/GB' },
+  { type: 'queue', label: 'Message Queue', icon: 'Inbox', hint: 'Kafka/RabbitMQ · $25/mo' },
 ];

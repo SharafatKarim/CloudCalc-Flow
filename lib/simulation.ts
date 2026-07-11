@@ -1,4 +1,13 @@
-import type { AppNode, AppEdge, ServerData, DatabaseData, StorageData, Health } from './types';
+import type {
+  AppNode,
+  AppEdge,
+  ServerData,
+  DatabaseData,
+  StorageData,
+  CdnData,
+  NoSqlData,
+  Health,
+} from './types';
 import {
   SERVER_TIERS,
   OS_OVERHEAD,
@@ -12,6 +21,12 @@ import {
   LB_COST,
   LB_CAPACITY,
   BANDWIDTH_PER_USER_GB_MO,
+  CDN_BASE,
+  CDN_PER_GB,
+  API_GATEWAY_COST,
+  QUEUE_COST,
+  NOSQL_BASE,
+  NOSQL_PER_GB,
 } from './infrastructureData';
 
 /**
@@ -110,6 +125,18 @@ export function nodeCost(node: AppNode): number {
     }
     case 'cache':
       return CACHE_COST;
+    case 'cdn': {
+      const d = node.data as CdnData;
+      return CDN_BASE + d.cachedGB * CDN_PER_GB;
+    }
+    case 'apiGateway':
+      return API_GATEWAY_COST;
+    case 'queue':
+      return QUEUE_COST;
+    case 'nosql': {
+      const d = node.data as NoSqlData;
+      return NOSQL_BASE[d.db] + Math.max(0, d.sizeGB - 1) * NOSQL_PER_GB;
+    }
     default:
       return 0;
   }

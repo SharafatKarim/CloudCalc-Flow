@@ -75,6 +75,14 @@ function defaultData(type: NodeKind, seq: number): AppNodeData {
       return { kind: 'storage', name: `Storage-${seq}`, sizeGB: 10 };
     case 'cache':
       return { kind: 'cache', name: `Redis-${seq}` };
+    case 'cdn':
+      return { kind: 'cdn', name: `CDN-${seq}`, cachedGB: 50 };
+    case 'apiGateway':
+      return { kind: 'apiGateway', name: `Gateway-${seq}` };
+    case 'queue':
+      return { kind: 'queue', name: `Queue-${seq}` };
+    case 'nosql':
+      return { kind: 'nosql', name: `NoSQL-${seq}`, db: 'MongoDB', sizeGB: 1 };
   }
 }
 
